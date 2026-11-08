@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Лидерборд · НЕЙРОКЛУБ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="crumb">// сезон 04 · рейтинг</div>
+    <h1>ЛИДЕРБОРД</h1>
+    <p class="desc">Топ игроков по ELO. Решай задачи — поднимайся.</p>
+</div>
+
+<table class="lb-table">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>игрок</th>
+            <th>лига</th>
+            <th>ELO</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for u in top %}
+        <tr class="{{ 'lb-me' if user and u.id == user.id else '' }}">
+            <td class="lb-rank">{{ loop.index }}</td>
+            <td class="lb-name">
+                <span class="lb-avatar">{{ u.avatar }}</span>
+                {{ u.username }}
+            </td>
+            <td class="lb-league">
+                {% if u.elo_rating >= 1600 %}🔥 master
+                {% elif u.elo_rating >= 1400 %}⚡ diamond
+                {% elif u.elo_rating >= 1200 %}🥈 gold
+                {% elif u.elo_rating >= 1000 %}🥉 silver
+                {% else %}🌱 bronze{% endif %}
+            </td>
+            <td class="lb-elo">{{ "%.1f"|format(u.elo_rating) }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="empty">Пока нет игроков.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}НЕЙРОКЛУБ{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav class="topnav">
+        <a href="/" class="nav-logo">НЕЙРОКЛУБ<span class="blink">_</span></a>
+        <div class="nav-links">
+            <a href="/courses" class="nav-link">курсы</a>
+            <a href="/leaderboard" class="nav-link">лидерборд</a>
+            {% if user %}
+                <a href="/profile" class="nav-link nav-user">{{ user.avatar }} {{ user.username }} · {{ "%.0f"|format(user.elo_rating) }}</a>
+            {% else %}
+                <a href="/" class="nav-link nav-enter">→ войти</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <main class="page">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <div>// ai club · season 04 · {{ now_year }}</div>
+        <div>built with python · flask · sqlalchemy</div>
+    </footer>
+</body>
+</html>

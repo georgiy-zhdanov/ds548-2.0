@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ user.username }} · НЕЙРОКЛУБ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="crumb">// профиль</div>
+    <h1>{{ user.avatar }} {{ user.username }}</h1>
+</div>
+
+<div class="profile-grid">
+    <div class="stat-card">
+        <div class="stat-label">ELO</div>
+        <div class="stat-value">{{ "%.1f"|format(user.elo_rating) }}</div>
+        <div class="stat-sub">сезон 04</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">лига</div>
+        <div class="stat-value">
+            {% if user.elo_rating >= 1600 %}🔥 master
+            {% elif user.elo_rating >= 1400 %}⚡ diamond
+            {% elif user.elo_rating >= 1200 %}🥈 gold
+            {% elif user.elo_rating >= 1000 %}🥉 silver
+            {% else %}🌱 bronze{% endif %}
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">регистрация</div>
+        <div class="stat-value" style="font-size:18px">{{ user.created_at.strftime('%d.%m.%Y') if user.created_at else '—' }}</div>
+    </div>
+</div>
+
+<div class="profile-actions">
+    <a href="/courses" class="btn">→ к курсам</a>
+    <a href="/leaderboard" class="btn">→ лидерборд</a>
+</div>
+{% endblock %}

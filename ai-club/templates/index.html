@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}НЕЙРОКЛУБ — AI Club · ELO-сезон 04{% endblock %}
+
+{% block content %}
+<div class="terminal">
+    <div class="header">
+        <div class="logo">НЕЙРОКЛУБ — AI Club · ELO-сезон 04</div>
+        <div class="season">ELO-сезон 04</div>
+    </div>
+
+    <div class="tagline">AI//НЕЙРОКЛУБ<span class="blink">_</span>elo season 04</div>
+    <div class="subtag">// ai club · сезон 04 · набор открыт</div>
+
+    <h1>КЛУБ, ГДЕ КАЧАЮТ И МОДЕЛИ,<br>И ЛЮДЕЙ</h1>
+    <p class="desc">
+        Курсы с модулями и уроками, Jupyter-практикум прямо в браузере,
+        задачи с нейро-тренером — и честный ELO-рейтинг за каждую решённую задачу.
+    </p>
+
+    <ul class="features">
+        <li><a href="/courses"><span class="num">01</span> курсы · модули · markdown-уроки</a></li>
+        <li><a href="/courses"><span class="num">02</span> jupyter-практикум на настоящем python</a></li>
+        <li><a href="/courses"><span class="num">03</span> ai-тренер ведёт по задаче шаг за шагом</a></li>
+        <li><a href="/leaderboard"><span class="num">04</span> elo-рейтинг, лиги и сезонный лидерборд</a></li>
+    </ul>
+
+    <div class="auth-block">
+        <div class="auth-title">пропуск в клуб</div>
+
+        {% if user %}
+            <div class="welcome">
+                <span class="avatar">{{ user.avatar }}</span>
+                <span class="nick">{{ user.username }}</span>
+                <span class="elo">ELO: {{ "%.1f"|format(user.elo_rating) }}</span>
+                <button onclick="logout()">выйти</button>
+            </div>
+        {% else %}
+            <div class="auth-sub">Вход для участников</div>
+            <div class="tabs">
+                <button class="tab active" data-tab="login">Вход</button>
+                <button class="tab" data-tab="register">Регистрация</button>
+            </div>
+            <form id="authForm">
+                <input type="text" id="username" placeholder="Ник" required>
+                <input type="password" id="password" placeholder="Пароль" required>
+                <div id="avatarBlock" style="display:none">
+                    <label>Выбери аватар:</label>
+                    <div class="avatars">
+                        <label><input type="radio" name="avatar" value="🤖" checked>🤖</label>
+                        <label><input type="radio" name="avatar" value="🧠">🧠</label>
+                        <label><input type="radio" name="avatar" value="⚡">⚡</label>
+                        <label><input type="radio" name="avatar" value="🚀">🚀</label>
+                        <label><input type="radio" name="avatar" value="🎯">🎯</label>
+                    </div>
+                </div>
+                <button type="submit" id="submitBtn">Войти в клуб →</button>
+                <div id="error" class="error"></div>
+            </form>
+            <div class="demo-note">демо-режим: аккаунты живут в БД SQLite</div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    let mode = 'login';
+    document.querySelectorAll('.tab').forEach(t => {
+        t.onclick = () => {
+            document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+            t.classList.add('active');
+            mode = t.dataset.tab;
+            document.getElementById('avatarBlock').style.display = mode === 'register' ? 'block' : 'none';
+            document.getElementById('submitBtn').textContent = mode === 'login' ? 'Войти в клуб →' : 'Создать аккаунт →';
+        };
+    });
+    document.getElementById('authForm')?.addEventListener('submit', async e => {
+        e.preventDefault();
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const avatar = document.querySelector('input[name="avatar"]:checked')?.value || '🤖';
+        const err = document.getElementById('error');
+        err.textContent = '';
+        const res = await fetch(`/api/${mode}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username, password, avatar})
+        });
+        const data = await res.json();
+        if (!res.ok) { err.textContent = data.error; return; }
+        location.href = '/courses';
+    });
+    async function logout() {
+        await fetch('/api/logout', {method: 'POST'});
+        location.reload();
+    }
+</script>
+{% endblock %}

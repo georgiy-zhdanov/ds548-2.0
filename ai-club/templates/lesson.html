@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}{{ lesson.title }} · НЕЙРОКЛУБ{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="crumb">
+        <a href="/courses">курсы</a> /
+        <a href="/course/{{ course.id }}">{{ course.title }}</a> /
+        {{ lesson.title }}
+    </div>
+    <h1>{{ lesson.title }}</h1>
+    <div class="lesson-meta">
+        <span class="lesson-type type-{{ lesson.type }}">{{ lesson.type }}</span>
+        <span>модуль: {{ module.title }}</span>
+    </div>
+</div>
+
+<div class="lesson-body">
+    {% if lesson.type == 'markdown' %}
+        <div id="md-content" class="markdown"></div>
+        <script>
+            document.getElementById('md-content').innerHTML =
+                marked.parse({{ lesson.content|tojson }});
+        </script>
+
+        {% elif lesson.type == 'jupyter' %}
+        <div class="jupyter-shell">
+            <div class="jupyter-task">
+                📌 <strong>Задача:</strong> <span id="j-task-text">Загрузка...</span>
+            </div>
+            
+            <!-- Встраиваем настоящий JupyterLite REPL через iframe -->
+            <iframe 
+                id="jupyter-frame"
+                src="https://jupyterlite.github.io/demo/repl/?kernel=python&toolbar=1&code=" 
+                width="100%" 
+                height="500px" 
+                style="border: 1px solid #1a1a1a; border-radius: 4px; background: #050505;">
+            </iframe>
+            
+            <div class="jupyter-actions">
+                <button onclick="saveJupyterCode()">💾 Сохранить мой прогресс</button>
+                <button onclick="checkJupyterTask()" style="background: #4a9eff; color: #000;">✅ Проверить задачу</button>
+            </div>
+            <pre id="j-output" class="jupyter-output">// Здесь будет результат проверки</pre>
+        </div>
+
+        <script>
+            // Парсим задачу из БД
+            const taskData = {{ lesson.content|tojson }};
+            document.getElementById('j-task-text').textContent = taskData.task || 'Выполни задание в консоли выше.';
+
+            function saveJupyterCode() {
+                // В реальном проекте здесь будет отправка кода на сервер
+                document.getElementById('j-output').textContent = '💾 Код сохранён в твой профиль! (Демо)';
+            }
+
+            function checkJupyterTask() {
+                // Здесь можно добавить логику проверки (например, попросить ученика вставить вывод)
+                document.getElementById('j-output').textContent = '⚙️ Функция автоматической проверки Jupyter-задач будет добавлена на следующем этапе!';
+            }
+        </script>
+
+        {% elif lesson.type == 'ai_trainer' %}
+        <div class="ai-shell">
+            <div class="ai-task" id="ai-task">🎯 Загрузка задачи от AI-тренера...</div>
+            <div class="ai-chat" id="ai-chat"></div>
+            <div class="ai-input">
+                <textarea id="ai-code" placeholder="Напиши решение или задай вопрос..."></textarea>
+                <button onclick="sendToAI()" id="ai-send-btn">Отправить →</button>
+            </div>
+        </div>
+
+        <script>
+            const lessonContext = {{ lesson.content|tojson }};
+            let chatHistory = [];
+
+            // При загрузке просим AI дать первую задачу
+            window.onload = () => {
+                sendToAI("Начни урок. Дай первую задачу.");
+            };
+
+            async function sendToAI(userMessage) {
+                const inputField = document.getElementById('ai-code');
+                const sendBtn = document.getElementById('ai-send-btn');
+                
+                if (!userMessage) {
+                    userMessage = inputField.value.trim();
+                    if (!userMessage) return;
+                    addMsg('user', userMessage);
+                    inputField.value = '';
+                } else {
+                    addMsg('user', userMessage); // Первое сообщение от системы
+                }
+
+                sendBtn.disabled = true;
+                sendBtn.textContent = 'Думает...';
+                chatHistory.push({"role": "user", "content": userMessage});
+
+                try {
+                    const res = await fetch('/api/ai_trainer', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            context: lessonContext.topic || "Python основы",
+                            message: userMessage,
+                            history: chatHistory
+                        })
+                    });
+                    const data = await res.json();
+                    
+                    // Формируем красивый ответ
+                    let aiResponseText = data.feedback + "\n\n";
+                    if (data.next_step) {
+                        aiResponseText += "➡️ " + data.next_step;
+                    }
+                    if (data.lesson_completed) {
+                        aiResponseText += "\n\n🎉 Урок пройден! Твой ELO обновлён.";
+                    }
+
+                    addMsg('ai', aiResponseText);
+                    chatHistory.push({"role": "assistant", "content": JSON.stringify(data)});
+                } catch (err) {
+                    addMsg('ai', '⚠️ Ошибка связи с AI. Убедись, что Ollama запущена.');
+                } finally {
+                    sendBtn.disabled = false;
+                    sendBtn.textContent = 'Отправить →';
+                }
+            }
+
+            function addMsg(who, text) {
+                const chat = document.getElementById('ai-chat');
+                const div = document.createElement('div');
+                div.className = 'msg msg-' + who;
+                // Преобразуем переносы строк в <br> для HTML
+                div.innerHTML = (who === 'ai' ? '🤖 ' : '👤 ') + text.replace(/\n/g, '<br>');
+                chat.appendChild(div);
+                chat.scrollTop = chat.scrollHeight;
+            }
+            
+            // Отправка по Ctrl+Enter
+            document.getElementById('ai-code').addEventListener('keydown', function(e) {
+                if (e.ctrlKey && e.key === 'Enter') {
+                    sendToAI();
+                }
+            });
+        </script>
+    {% endif %}
+</div>
+
+<div class="lesson-nav">
+    {% if prev %}
+        <a href="/lesson/{{ prev.id }}" class="nav-prev">← {{ prev.title }}</a>
+    {% else %}
+        <span></span>
+    {% endif %}
+    {% if next %}
+        <a href="/lesson/{{ next.id }}" class="nav-next">{{ next.title }} →</a>
+    {% endif %}
+</div>
+{% endblock %}

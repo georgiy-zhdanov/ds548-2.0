@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Курсы · НЕЙРОКЛУБ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="crumb">// каталог · все курсы</div>
+    <h1>КУРСЫ КЛУБА</h1>
+    <p class="desc">Прокачивай навыки, решай задачи, расти в ELO.</p>
+</div>
+
+<div class="courses-grid">
+    {% for item in courses %}
+    <a href="/course/{{ item.id }}" class="course-card">
+        <div class="card-top">
+            <span class="card-type">COURSE</span>
+            <span class="card-count">{{ item.lessons_count }} уроков</span>
+        </div>
+        <h2>{{ item.title }}</h2>
+        <p>{{ item.description or '—' }}</p>
+        <div class="card-bottom">
+            <span class="card-modules">{{ item.modules_count }} модулей</span>
+            <span class="card-arrow">→</span>
+        </div>
+    </a>
+    {% else %}
+    <div class="empty">Пока нет курсов. Скоро добавим.</div>
+    {% endfor %}
+</div>
+{% endblock %}

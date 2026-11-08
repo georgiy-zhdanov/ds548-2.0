@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ course.title }} · НЕЙРОКЛУБ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="crumb"><a href="/courses">курсы</a> / {{ course.title }}</div>
+    <h1>{{ course.title }}</h1>
+    <p class="desc">{{ course.description or '' }}</p>
+</div>
+
+<div class="modules">
+    {% for m in course.modules | sort(attribute='order') %}
+    <section class="module">
+        <div class="module-head">
+            <span class="module-num">M{{ '%02d'|format(m.order) }}</span>
+            <h2>{{ m.title }}</h2>
+            <span class="module-count">{{ m.lessons | length }} уроков</span>
+        </div>
+        <ul class="lesson-list">
+            {% for l in m.lessons | sort(attribute='order') %}
+            <li>
+                <a href="/lesson/{{ l.id }}" class="lesson-row">
+                    <span class="lesson-num">L{{ '%02d'|format(l.order) }}</span>
+                    <span class="lesson-type type-{{ l.type }}">{{ l.type }}</span>
+                    <span class="lesson-title">{{ l.title }}</span>
+                    <span class="lesson-arrow">→</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% else %}
+    <div class="empty">В курсе пока нет модулей.</div>
+    {% endfor %}
+</div>
+{% endblock %}
