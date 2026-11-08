@@ -9,7 +9,7 @@ import json
 import re
 from groq import Groq
 
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "insert api here"
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 Base.metadata.create_all(bind=engine)
