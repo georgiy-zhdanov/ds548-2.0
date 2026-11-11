@@ -1,3 +1,5 @@
+import time
+from werkzeug.utils import secure_filename
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, abort
 from database import engine, SessionLocal
 from models import Base, User, Course, Module, Lesson, calculate_elo
@@ -8,8 +10,10 @@ import os
 import json
 import re
 from groq import Groq
+from dotenv import load_dotenv
+load_dotenv()  # Загружает переменные из .env файла
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 
-GROQ_API_KEY = "insert api here"
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 Base.metadata.create_all(bind=engine)
@@ -17,6 +21,12 @@ Base.metadata.create_all(bind=engine)
 app = Flask(__name__)
 app.secret_key = "change_me_to_random_string_in_production"
 
+UPLOAD_FOLDER = '/root/ai_club/ds548-2.0/ai-club/uploads'
+ALLOWED_EXTENSIONS = {'pdf', 'ipynb'}
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def login_required(f):
     @wraps(f)
@@ -164,7 +174,27 @@ def leaderboard():
 @app.route("/profile")
 @login_required
 def profile():
-    return render_template("profile.html", user=current_user())
+    user = current_user()
+    db = SessionLocal()
+    
+    # Находим все курсы, которые создал этот пользователь
+    my_courses = db.query(Course).options(
+        joinedload(Course.modules).joinedload(Module.lessons)
+    ).filter(Course.author_id == user.id).all()
+    
+    courses_data = []
+    for c in my_courses:
+        lessons_count = sum(len(m.lessons) for m in c.modules)
+        courses_data.append({
+            "id": c.id,
+            "title": c.title,
+            "description": c.description,
+            "modules_count": len(c.modules),
+            "lessons_count": lessons_count
+        })
+    
+    db.close()
+    return render_template("profile.html", user=user, my_courses=courses_data)
 
 
 # ================= AUTH API =================
@@ -237,26 +267,41 @@ def match():
 @login_required
 def ai_trainer():
     data = request.json
-    lesson_context = data.get("context", "Python основы")
+    lesson_id = data.get("lesson_id") # Получаем ID урока
     user_message = data.get("message", "")
     history = data.get("history", [])
 
-    # Проверяем ключ на лету
     if not GROQ_API_KEY or GROQ_API_KEY == "gsk_твой_ключ_здесь":
         return jsonify({
-            "feedback": "⚠ В app.py не указан GROQ_API_KEY. Открой файл и вставь ключ с console.groq.com",
+            "feedback": "⚠ В app.py не указан GROQ_API_KEY.",
             "is_correct": False,
             "next_step": "Сначала настрой API-ключ.",
             "lesson_completed": False
         }), 400
 
+    # --- ДОСТАЕМ ТЕМУ ИЗ БАЗЫ ДАННЫХ ---
+    db = SessionLocal()
+    lesson = db.query(Lesson).filter(Lesson.id == lesson_id).first()
+    
+    topic = "Python основы" # Значение по умолчанию
+    if lesson:
+        try:
+            # Парсим JSON, который мы сохранили при создании урока
+            config = json.loads(lesson.content)
+            topic = config.get("topic", "Python основы")
+        except:
+            pass
+    db.close()
+    # ------------------------------------
+
     system_prompt = f"""Ты — AI-тренер по программированию в НЕЙРОКЛУБЕ. 
-Тема урока: {lesson_context}.
+Тема урока: {topic}.
+Твоя задача: вести ученика по шагам. Не давай готовый код сразу, а направляй.
 Отвечай СТРОГО в формате JSON:
 {{
-  "feedback": "Краткий разбор",
+  "feedback": "Краткий разбор кода или ответа ученика",
   "is_correct": true или false,
-  "next_step": "Следующий шаг или задача",
+  "next_step": "Следующая задача или подсказка",
   "lesson_completed": true или false
 }}"""
 
@@ -266,8 +311,7 @@ def ai_trainer():
     try:
         chat_completion = groq_client.chat.completions.create(
             messages=messages,
-            # ⚠️ ИСПОЛЬЗУЕМ ТОЧНО РАБОЧУЮ МОДЕЛЬ:
-            model="llama-3.3-70b-versatile",
+            model="openai/gpt-oss-120b",  
             response_format={"type": "json_object"},
             temperature=0.3
         )
@@ -278,11 +322,9 @@ def ai_trainer():
         return jsonify(parsed_response)
 
     except Exception as e:
-        # ВАЖНО: выводим полную ошибку в консоль Flask
         print(f"\n{'='*50}")
         print(f"GROQ ERROR TYPE: {type(e).__name__}")
         print(f"GROQ ERROR MSG:  {e}")
-        print(f"API KEY START:   {GROQ_API_KEY[:10]}...")
         print(f"{'='*50}\n")
         
         return jsonify({
@@ -291,6 +333,287 @@ def ai_trainer():
             "next_step": "Проверь консоль Flask для деталей.",
             "lesson_completed": False
         }), 500
+
+# ================= CREATE COURSES =================
+
+@app.route("/create-course")
+@login_required
+def create_course_page():
+    return render_template("create_course.html", user=current_user())
+
+
+@app.route("/api/create-course", methods=["POST"])
+@login_required
+def create_course():
+    data = request.json
+    title = data.get("title", "").strip()
+    description = data.get("description", "").strip()
+    
+    if not title:
+        return jsonify({"error": "Название курса обязательно"}), 400
+    
+    db = SessionLocal()
+    course = Course(
+        title=title,
+        description=description,
+        author_id=session["user_id"]
+    )
+    db.add(course)
+    db.commit()
+    course_id = course.id
+    db.close()
+    
+    return jsonify({"ok": True, "course_id": course_id})
+
+
+@app.route("/api/create-module", methods=["POST"])
+@login_required
+def create_module():
+    data = request.json
+    course_id = data.get("course_id")
+    title = data.get("title", "").strip()
+    
+    if not course_id or not title:
+        return jsonify({"error": "ID курса и название модуля обязательны"}), 400
+    
+    db = SessionLocal()
+    # Находим максимальный order для этого курса
+    max_order = db.query(Module).filter(Module.course_id == course_id).count()
+    
+    module = Module(
+        course_id=course_id,
+        title=title,
+        order=max_order + 1
+    )
+    db.add(module)
+    db.commit()
+    module_id = module.id
+    db.close()
+    
+    return jsonify({"ok": True, "module_id": module_id})
+
+
+@app.route("/api/create-lesson", methods=["POST"])
+@login_required
+def create_lesson():
+    data = request.json
+    module_id = data.get("module_id")
+    title = data.get("title", "").strip()
+    lesson_type = data.get("type", "markdown")
+    content = data.get("content", "")
+    
+    if not module_id or not title:
+        return jsonify({"error": "ID модуля и название урока обязательны"}), 400
+    
+    db = SessionLocal()
+    # Находим максимальный order для этого модуля
+    max_order = db.query(Lesson).filter(Lesson.module_id == module_id).count()
+    
+    # Формируем content в зависимости от типа
+    if lesson_type == "markdown":
+        lesson_content = content or "# Новый урок\n\nОписание урока..."
+    elif lesson_type in ["ipynb_file", "pdf_file"]:
+        lesson_content = content # Здесь будет лежать имя файла (unique_filename)
+    elif lesson_type == "jupyter":
+        lesson_content = json.dumps({"task": content or "Выполни задание в Jupyter"})
+    elif lesson_type == "ai_trainer":
+        lesson_content = json.dumps({
+            "topic": content or "Python основы",
+            "steps_count": 3
+        })
+    else:
+        lesson_content = content
+    
+    lesson = Lesson(
+        module_id=module_id,
+        title=title,
+        type=lesson_type,
+        content=lesson_content,
+        order=max_order + 1
+    )
+    db.add(lesson)
+    db.commit()
+    lesson_id = lesson.id
+    db.close()
+    
+    return jsonify({"ok": True, "lesson_id": lesson_id})
+
+# ================= EDIT & DELETE =================
+
+@app.route("/edit-course/<int:course_id>")
+@login_required
+def edit_course(course_id):
+    db = SessionLocal()
+    c = db.query(Course).options(
+        joinedload(Course.modules).joinedload(Module.lessons)
+    ).filter(Course.id == course_id).first()
+    
+    if not c:
+        db.close()
+        abort(404)
+    
+    # Только автор может редактировать
+    if c.author_id != session["user_id"]:
+        db.close()
+        return redirect(url_for("profile"))
+    
+    course_data = {
+        "id": c.id,
+        "title": c.title,
+        "description": c.description or "",
+        "modules": [{
+            "id": m.id,
+            "title": m.title,
+            "order": m.order,
+            "lessons": [{
+                "id": l.id,
+                "title": l.title,
+                "type": l.type,
+                "order": l.order
+            } for l in sorted(m.lessons, key=lambda x: x.order)]
+        } for m in sorted(c.modules, key=lambda x: x.order)]
+    }
+    db.close()
+    return render_template("edit_course.html", user=current_user(), course=course_data)
+
+
+@app.route("/api/course/<int:course_id>", methods=["PUT"])
+@login_required
+def update_course(course_id):
+    db = SessionLocal()
+    c = db.query(Course).filter(Course.id == course_id).first()
+    if not c or c.author_id != session["user_id"]:
+        db.close()
+        return jsonify({"error": "Нет доступа"}), 403
+    
+    data = request.json
+    c.title = data.get("title", c.title).strip()
+    c.description = data.get("description", c.description or "").strip()
+    db.commit()
+    db.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/course/<int:course_id>", methods=["DELETE"])
+@login_required
+def delete_course(course_id):
+    db = SessionLocal()
+    c = db.query(Course).filter(Course.id == course_id).first()
+    if not c or c.author_id != session["user_id"]:
+        db.close()
+        return jsonify({"error": "Нет доступа"}), 403
+    
+    db.delete(c)
+    db.commit()
+    db.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/module/<int:module_id>", methods=["DELETE"])
+@login_required
+def delete_module(module_id):
+    db = SessionLocal()
+    m = db.query(Module).filter(Module.id == module_id).first()
+    if not m or m.course.author_id != session["user_id"]:
+        db.close()
+        return jsonify({"error": "Нет доступа"}), 403
+    
+    db.delete(m)
+    db.commit()
+    db.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/lesson/<int:lesson_id>", methods=["DELETE"])
+@login_required
+def delete_lesson(lesson_id):
+    db = SessionLocal()
+    l = db.query(Lesson).filter(Lesson.id == lesson_id).first()
+    if not l or l.module.course.author_id != session["user_id"]:
+        db.close()
+        return jsonify({"error": "Нет доступа"}), 403
+    
+    db.delete(l)
+    db.commit()
+    db.close()
+    return jsonify({"ok": True})
+
+@app.route("/api/complete-lesson", methods=["POST"])
+@login_required
+def complete_lesson():
+    data = request.json
+    lesson_id = data.get("lesson_id")
+    
+    # Настройка: сколько ELO даем за прохождение одного AI-урока
+    ELO_REWARD = 25 
+    
+    db = SessionLocal()
+    user = db.query(User).filter(User.id == session["user_id"]).first()
+    
+    if user:
+        user.elo_rating += ELO_REWARD
+        db.commit()
+        new_elo = user.elo_rating
+    else:
+        new_elo = 0
+        
+    db.close()
+    return jsonify({"ok": True, "new_elo": new_elo})
+@app.route("/api/upload-lesson-file", methods=["POST"])
+@login_required
+def upload_lesson_file():
+    if 'file' not in request.files:
+        return jsonify({"error": "Нет файла в запросе"}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "Файл не выбран"}), 400
+        
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        # Добавляем timestamp, чтобы файлы с одинаковыми именами не перезаписывались
+        name, ext = os.path.splitext(filename)
+        unique_filename = f"{name}_{int(time.time())}{ext}"
+        
+        filepath = os.path.join(UPLOAD_FOLDER, unique_filename)
+        file.save(filepath)
+        
+        return jsonify({"ok": True, "filename": unique_filename})
+    
+    return jsonify({"error": "Недопустимый формат. Разрешены только .pdf и .ipynb"}), 400
+
+@app.route("/api/lesson/<int:lesson_id>", methods=["PUT"])
+@login_required
+def update_lesson(lesson_id):
+    db = SessionLocal()
+    l = db.query(Lesson).filter(Lesson.id == lesson_id).first()
+    
+    if not l or l.module.course.author_id != session["user_id"]:
+        db.close()
+        return jsonify({"error": "Нет доступа"}), 403
+    
+    data = request.json
+    l.title = data.get("title", l.title).strip()
+    l.type = data.get("type", l.type)
+    
+    # Обновляем контент в зависимости от типа
+    content = data.get("content", "")
+    
+    if l.type == "markdown":
+        l.content = content
+    elif l.type == "jupyter":
+        l.content = json.dumps({"task": content})
+    elif l.type == "ai_trainer":
+        l.content = json.dumps({
+            "topic": content,
+            "steps_count": 3
+        })
+    elif l.type in ["pdf_file", "ipynb_file"]:
+        l.content = content  # Здесь хранится имя файла
+    
+    db.commit()
+    db.close()
+    return jsonify({"ok": True})
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

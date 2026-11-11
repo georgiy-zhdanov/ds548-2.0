@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}Создать курс · НЕЙРОКЛУБ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="crumb"><a href="/courses">курсы</a> / создать новый</div>
+    <h1>СОЗДАТЬ КУРС</h1>
+    <p class="desc">Заполни информацию о курсе, затем добавь модули и уроки.</p>
+</div>
+
+<div class="create-form">
+    <div class="form-section">
+        <h2>📚 Информация о курсе</h2>
+        <form id="courseForm">
+            <label>Название курса *</label>
+            <input type="text" id="courseTitle" placeholder="Например: Python с нуля" required>
+            
+            <label>Описание</label>
+            <textarea id="courseDesc" placeholder="Краткое описание курса..." rows="3"></textarea>
+            
+            <button type="submit" class="btn-primary">Создать курс →</button>
+        </form>
+    </div>
+
+    <div id="modulesSection" style="display:none">
+        <div class="form-section">
+            <h2>📦 Модули курса</h2>
+            <div id="modulesList"></div>
+            
+            <form id="moduleForm">
+                <label>Название модуля</label>
+                <input type="text" id="moduleTitle" placeholder="Например: Модуль 1 · Основы" required>
+                <button type="submit" class="btn-secondary">+ Добавить модуль</button>
+            </form>
+        </div>
+
+        <div id="lessonsSection" style="display:none">
+            <div class="form-section">
+                <h2>📝 Уроки модуля <span id="currentModuleName"></span></h2>
+                <div id="lessonsList"></div>
+                
+                <form id="lessonForm">
+                    <label>Название урока</label>
+                    <input type="text" id="lessonTitle" placeholder="Например: Переменные и типы" required>
+                    
+                    <label>Тип урока</label>
+                    <select id="lessonType">
+                        <option value="markdown">Markdown (теория)</option>
+                        <option value="jupyter">Jupyter (практика)</option>
+                        <option value="ai_trainer">AI-тренер (задачи)</option>
+                    </select>
+                    
+                    <label id="contentLabel">Содержание (Markdown)</label>
+                    <textarea id="lessonContent" placeholder="# Заголовок&#10;&#10;Текст урока..." rows="8"></textarea>
+                    
+                    <button type="submit" class="btn-secondary">+ Добавить урок</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="successSection" style="display:none">
+        <div class="success-box">
+            <h2>✅ Курс создан!</h2>
+            <p>Твой курс готов. Можешь продолжить добавлять модули и уроки или перейти к курсу.</p>
+            <a id="viewCourseLink" href="#" class="btn-primary">→ Открыть курс</a>
+            <button onclick="location.reload()" class="btn-secondary">Создать ещё один</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let courseId = null;
+let currentModuleId = null;
+
+// Создание курса
+document.getElementById('courseForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const title = document.getElementById('courseTitle').value;
+    const description = document.getElementById('courseDesc').value;
+    
+    const res = await fetch('/api/create-course', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title, description})
+    });
+    const data = await res.json();
+    
+    if (res.ok) {
+        courseId = data.course_id;
+        document.getElementById('modulesSection').style.display = 'block';
+        document.getElementById('courseForm').style.display = 'none';
+    } else {
+        alert(data.error);
+    }
+});
+
+// Создание модуля
+document.getElementById('moduleForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const title = document.getElementById('moduleTitle').value;
+    
+    const res = await fetch('/api/create-module', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({course_id: courseId, title})
+    });
+    const data = await res.json();
+    
+    if (res.ok) {
+        currentModuleId = data.module_id;
+        document.getElementById('lessonsSection').style.display = 'block';
+        document.getElementById('currentModuleName').textContent = `(${title})`;
+        document.getElementById('moduleTitle').value = '';
+        loadModules();
+    } else {
+        alert(data.error);
+    }
+});
+
+// Создание урока
+document.getElementById('lessonForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const title = document.getElementById('lessonTitle').value;
+    const type = document.getElementById('lessonType').value;
+    const content = document.getElementById('lessonContent').value;
+    
+    const res = await fetch('/api/create-lesson', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({module_id: currentModuleId, title, type, content})
+    });
+    const data = await res.json();
+    
+    if (res.ok) {
+        document.getElementById('lessonTitle').value = '';
+        document.getElementById('lessonContent').value = '';
+        loadLessons();
+    } else {
+        alert(data.error);
+    }
+});
+
+// Изменение placeholder в зависимости от типа урока
+document.getElementById('lessonType').addEventListener('change', e => {
+    const type = e.target.value;
+    const label = document.getElementById('contentLabel');
+    const textarea = document.getElementById('lessonContent');
+    
+    if (type === 'markdown') {
+        label.textContent = 'Содержание (Markdown)';
+        textarea.placeholder = '# Заголовок\n\nТекст урока...';
+    } else if (type === 'jupyter') {
+        label.textContent = 'Задача для Jupyter';
+        textarea.placeholder = 'Описание задачи, которую ученик должен решить в Jupyter';
+    } else if (type === 'ai_trainer') {
+        label.textContent = 'Тема урока для AI-тренера';
+        textarea.placeholder = 'Например: циклы for и while';
+    }
+});
+
+async function loadModules() {
+    // Здесь можно добавить загрузку списка модулей с сервера
+    // Пока просто показываем, что модуль добавлен
+    const list = document.getElementById('modulesList');
+    list.innerHTML += `<div class="module-item">✅ Модуль добавлен</div>`;
+}
+
+async function loadLessons() {
+    // Здесь можно добавить загрузку списка уроков с сервера
+    const list = document.getElementById('lessonsList');
+    list.innerHTML += `<div class="lesson-item">✅ Урок добавлен</div>`;
+}
+</script>
+{% endblock %}

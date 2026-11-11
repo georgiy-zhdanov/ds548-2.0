@@ -24,13 +24,56 @@
         </div>
     </div>
     <div class="stat-card">
+        <div class="stat-label">мои курсы</div>
+        <div class="stat-value">{{ my_courses|length }}</div>
+        <div class="stat-sub">создано</div>
+    </div>
+    <div class="stat-card">
         <div class="stat-label">регистрация</div>
         <div class="stat-value" style="font-size:18px">{{ user.created_at.strftime('%d.%m.%Y') if user.created_at else '—' }}</div>
     </div>
 </div>
 
 <div class="profile-actions">
-    <a href="/courses" class="btn">→ к курсам</a>
+    <a href="/create-course" class="btn btn-create">+ Создать курс</a>
+    <a href="/courses" class="btn">→ каталог курсов</a>
     <a href="/leaderboard" class="btn">→ лидерборд</a>
 </div>
+
+{% if my_courses %}
+<div class="my-courses-section">
+    <h2>МОИ КУРСЫ</h2>
+    <div class="courses-grid">
+        {% for c in my_courses %}
+        <div class="course-card-wrapper">
+            <a href="/course/{{ c.id }}" class="course-card">
+                <div class="card-top">
+                    <span class="card-type">MY COURSE</span>
+                    <span class="card-count">{{ c.lessons_count }} уроков</span>
+                </div>
+                <h2>{{ c.title }}</h2>
+                <p>{{ c.description or '—' }}</p>
+                <div class="card-bottom">
+                    <span class="card-modules">{{ c.modules_count }} модулей</span>
+                    <span class="card-arrow">→</span>
+                </div>
+            </a>
+            <div class="card-actions">
+                <a href="/edit-course/{{ c.id }}" class="card-btn">✏️ ред.</a>
+                <button onclick="deleteCourseFromProfile({{ c.id }})" class="card-btn card-btn-danger">🗑</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<script>
+async function deleteCourseFromProfile(id) {
+    if (!confirm('Удалить курс?')) return;
+    const res = await fetch(`/api/course/${id}`, {method: 'DELETE'});
+    if (res.ok) location.reload();
+}
+</script>
+
 {% endblock %}

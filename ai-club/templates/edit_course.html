@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+{% block title %}Редактировать: {{ course.title }} · НЕЙРОКЛУБ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="crumb"><a href="/profile">профиль</a> / редактирование курса</div>
+    <h1 id="courseTitleDisplay">{{ course.title }}</h1>
+    <p class="desc" id="courseDescDisplay">{{ course.description or 'Без описания' }}</p>
+    <div class="course-actions">
+        <button onclick="editCourseInfo()" class="btn">✏️ Изменить название</button>
+        <a href="/course/{{ course.id }}" class="btn">👁 Просмотр</a>
+        <button onclick="deleteCourse()" class="btn btn-danger">🗑 Удалить курс</button>
+    </div>
+</div>
+
+<div class="editor-layout">
+    <!-- ЛЕВАЯ КОЛОНКА: Модули -->
+    <div class="editor-sidebar">
+        <div class="sidebar-header">
+            <h3>МОДУЛИ</h3>
+            <button onclick="addModule()" class="btn-small">+ модуль</button>
+        </div>
+        <div id="modulesList" class="modules-list">
+            {% for m in course.modules %}
+            <div class="module-item-editor {{ 'active' if loop.first else '' }}" 
+                 data-id="{{ m.id }}" onclick="selectModule({{ m.id }}, '{{ m.title|e }}')">
+                <span class="module-order">M{{ '%02d'|format(m.order) }}</span>
+                <span class="module-title-edit">{{ m.title }}</span>
+                <button onclick="event.stopPropagation(); deleteModule({{ m.id }})" 
+                        class="btn-icon" title="Удалить модуль">×</button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ПРАВАЯ КОЛОНКА: Уроки выбранного модуля -->
+    <div class="editor-main">
+        <div id="noModuleSelected" class="empty-state" {% if course.modules %}style="display:none"{% endif %}>
+            <p>← Сначала создай модуль</p>
+        </div>
+
+        <div id="moduleEditor" {% if not course.modules %}style="display:none"{% endif %}>
+            <div class="module-editor-header">
+                <h2 id="currentModuleTitle">
+                    {% if course.modules %}{{ course.modules[0].title }}{% endif %}
+                </h2>
+                <!-- ДОБАВЛЕНО type="button" -->
+                <button type="button" onclick="addLesson()" class="btn-small btn-accent">+ урок</button>
+            </div>
+            
+            <div id="lessonsList" class="lessons-list">
+                {% if course.modules and course.modules[0].lessons %}
+                    {% for l in course.modules[0].lessons %}
+                    <div class="lesson-item-editor" data-id="{{ l.id }}">
+                        <span class="lesson-order">L{{ '%02d'|format(l.order) }}</span>
+                        <span class="lesson-type-badge type-{{ l.type }}">{{ l.type }}</span>
+                        <span class="lesson-title-edit">{{ l.title }}</span>
+                        <button onclick="deleteLesson({{ l.id }})" 
+                                class="btn-icon" title="Удалить урок">×</button>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+
+            <!-- Форма добавления урока -->
+                        <div id="addLessonForm" style="display:none" class="add-form">
+                <h3>Новый урок</h3>
+                <label>Название</label>
+                <input type="text" id="newLessonTitle" placeholder="Например: Введение в Pandas">
+                
+                <label>Тип урока</label>
+                <select id="newLessonType" onchange="toggleLessonInput()">
+                    <option value="markdown">Markdown (текст)</option>
+                    <option value="jupyter">Jupyter (онлайн-практика)</option>
+                    <option value="ai_trainer">AI-тренер (задачи)</option>
+                    <option value="pdf_file">📄 PDF Документ</option>
+                    <option value="ipynb_file">📓 Jupyter Notebook (.ipynb)</option>
+                </select>
+                
+                <!-- Блок для текста -->
+                <div id="textInputBlock">
+                    <label id="newLessonContentLabel">Содержание</label>
+                    <textarea id="newLessonContent" rows="6" placeholder="# Заголовок&#10;&#10;Текст урока..."></textarea>
+                </div>
+
+                <!-- Блок для загрузки файла -->
+                <div id="fileInputBlock" style="display:none">
+                    <label>Выберите файл (.pdf или .ipynb)</label>
+                    <input type="file" id="newLessonFile" accept=".pdf,.ipynb">
+                    <div id="uploadStatus" style="color: #00ff96; font-size: 12px; margin-top: 5px;"></div>
+                </div>
+                
+                <div class="form-buttons">
+                    <button onclick="submitLessonWithFile()" class="btn-small btn-accent">Создать</button>
+                    <button onclick="cancelLesson()" class="btn-small">Отмена</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 1. БЕЗОПАСНАЯ ИНИЦИАЛИЗАЦИЯ (в самом верху, до любых функций)
+const courseId = {{ course.id }};
+let currentModuleId = null;
+
+// Безопасно получаем ID первого модуля, если он есть
+{% if course.modules and course.modules|length > 0 %}
+    currentModuleId = {{ course.modules[0].id }};
+{% endif %}
+
+let courseData = { modules: [] };
+
+// 2. ЖДЁМ ПОЛНОЙ ЗАГРУЗКИ СТРАНИЦЫ
+document.addEventListener('DOMContentLoaded', () => {
+    // Загружаем JSON с данными курса
+    try {
+        const jsonData = document.getElementById('course-data');
+        if (jsonData && jsonData.textContent) {
+            courseData = JSON.parse(jsonData.textContent);
+        }
+    } catch (e) {
+        console.error("Ошибка парсинга JSON курса:", e);
+    }
+
+    // Инициализируем интерфейс
+    if (currentModuleId) {
+        renderLessons(currentModuleId);
+    } else {
+        const noMod = document.getElementById('noModuleSelected');
+        const modEd = document.getElementById('moduleEditor');
+        if (noMod) noMod.style.display = 'block';
+        if (modEd) modEd.style.display = 'none';
+    }
+});
+
+// 3. ФУНКЦИИ (теперь они точно видят currentModuleId)
+
+function selectModule(id, name) {
+    currentModuleId = id;
+    
+    document.querySelectorAll('.module-item-editor').forEach(el => el.classList.remove('active'));
+    const activeEl = document.querySelector(`.module-item-editor[data-id="${id}"]`);
+    if (activeEl) activeEl.classList.add('active');
+    
+    const titleEl = document.getElementById('currentModuleTitle');
+    if (titleEl) titleEl.textContent = name;
+    
+    const noMod = document.getElementById('noModuleSelected');
+    const modEd = document.getElementById('moduleEditor');
+    if (noMod) noMod.style.display = 'none';
+    if (modEd) modEd.style.display = 'block';
+    
+    renderLessons(id);
+}
+
+function renderLessons(moduleId) {
+    const module = courseData.modules.find(m => m.id === moduleId);
+    const list = document.getElementById('lessonsList');
+    if (!list) return;
+    
+    if (!module || !module.lessons || module.lessons.length === 0) {
+        list.innerHTML = '<div class="empty-state">Нет уроков. Добавь первый!</div>';
+        return;
+    }
+    
+    list.innerHTML = module.lessons.map(l => `
+        <div class="lesson-item-editor" data-id="${l.id}">
+            <span class="lesson-order">L${String(l.order).padStart(2, '0')}</span>
+            <span class="lesson-type-badge type-${l.type}">${l.type}</span>
+            <span class="lesson-title-edit">${l.title}</span>
+            <div class="lesson-actions">
+                <button type="button" onclick="openEditLesson(${l.id})" class="btn-icon" title="Редактировать">✏️</button>
+                <button type="button" onclick="deleteLesson(${l.id})" class="btn-icon" title="Удалить урок">×</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function toggleLessonInput() {
+    const typeSelect = document.getElementById('newLessonType');
+    if (!typeSelect) return;
+    const type = typeSelect.value;
+    const isFile = (type === 'pdf_file' || type === 'ipynb_file');
+    
+    const textBlock = document.getElementById('textInputBlock');
+    const fileBlock = document.getElementById('fileInputBlock');
+    if (textBlock) textBlock.style.display = isFile ? 'none' : 'block';
+    if (fileBlock) fileBlock.style.display = isFile ? 'block' : 'none';
+}
+
+function addLesson() {
+    console.log("🔍 Кнопка '+ урок' нажата. currentModuleId =", currentModuleId);
+    
+    if (!currentModuleId) {
+        alert('⚠️ Сначала создай или выбери модуль в левой колонке!');
+        return;
+    }
+    
+    resetLessonForm();
+    const form = document.getElementById('addLessonForm');
+    if (form) {
+        form.style.display = 'block';
+        form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+function resetLessonForm() {
+    const titleInput = document.getElementById('newLessonTitle');
+    const contentInput = document.getElementById('newLessonContent');
+    const fileInput = document.getElementById('newLessonFile');
+    const statusDiv = document.getElementById('uploadStatus');
+    const typeSelect = document.getElementById('newLessonType');
+    const form = document.getElementById('addLessonForm');
+
+    if (titleInput) titleInput.value = '';
+    if (contentInput) contentInput.value = '';
+    if (fileInput) fileInput.value = '';
+    if (statusDiv) statusDiv.textContent = '';
+    if (typeSelect) typeSelect.value = 'markdown';
+    
+    toggleLessonInput();
+    
+    if (form) {
+        delete form.dataset.editingId;
+        const submitBtn = form.querySelector('.form-buttons button:first-child');
+        if (submitBtn) {
+            submitBtn.textContent = 'Создать';
+            submitBtn.onclick = submitLessonWithFile;
+        }
+    }
+}
+
+function cancelLesson() {
+    const form = document.getElementById('addLessonForm');
+    if (form) form.style.display = 'none';
+}
+
+function openEditLesson(lessonId) {
+    let targetLesson = null;
+    courseData.modules.forEach(m => {
+        const found = m.lessons.find(l => l.id === lessonId);
+        if (found) targetLesson = found;
+    });
+    
+    if (!targetLesson) {
+        console.error("Урок не найден в courseData");
+        return;
+    }
+
+    const titleInput = document.getElementById('newLessonTitle');
+    const typeSelect = document.getElementById('newLessonType');
+    const contentInput = document.getElementById('newLessonContent');
+    const statusDiv = document.getElementById('uploadStatus');
+    const form = document.getElementById('addLessonForm');
+
+    if (titleInput) titleInput.value = targetLesson.title;
+    if (typeSelect) typeSelect.value = targetLesson.type;
+    
+    toggleLessonInput();
+
+    let content = targetLesson.content || "";
+    if (targetLesson.type === 'jupyter') {
+        try { content = JSON.parse(content).task || ''; } catch(e) {}
+    } else if (targetLesson.type === 'ai_trainer') {
+        try { content = JSON.parse(content).topic || ''; } catch(e) {}
+    }
+
+    if (targetLesson.type === 'pdf_file' || targetLesson.type === 'ipynb_file') {
+        if (statusDiv) statusDiv.textContent = `Текущий файл: ${content} (загрузите новый, чтобы заменить)`;
+        if (contentInput) contentInput.value = "";
+    } else {
+        if (contentInput) contentInput.value = content;
+    }
+
+    if (form) {
+        form.dataset.editingId = lessonId;
+        form.style.display = 'block';
+        const submitBtn = form.querySelector('.form-buttons button:first-child');
+        if (submitBtn) {
+            submitBtn.textContent = '💾 Сохранить изменения';
+            submitBtn.onclick = updateLessonWithFile;
+        }
+        form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+async function submitLessonWithFile() {
+    const titleInput = document.getElementById('newLessonTitle');
+    const typeSelect = document.getElementById('newLessonType');
+    const contentInput = document.getElementById('newLessonContent');
+    const fileInput = document.getElementById('newLessonFile');
+    const statusDiv = document.getElementById('uploadStatus');
+
+    const title = titleInput ? titleInput.value.trim() : '';
+    const type = typeSelect ? typeSelect.value : 'markdown';
+    
+    if (!title) { alert('Введи название'); return; }
+
+    let content = "";
+
+    if (type === 'pdf_file' || type === 'ipynb_file') {
+        if (!fileInput || !fileInput.files.length) {
+            alert('Выберите файл!');
+            return;
+        }
+        if (statusDiv) statusDiv.textContent = '⏳ Загрузка файла...';
+        
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        
+        const uploadRes = await fetch('/api/upload-lesson-file', { method: 'POST', body: formData });
+        const uploadData = await uploadRes.json();
+        
+        if (!uploadRes.ok) {
+            if (statusDiv) statusDiv.textContent = '';
+            alert(uploadData.error || 'Ошибка загрузки');
+            return;
+        }
+        content = uploadData.filename;
+        if (statusDiv) statusDiv.textContent = '✅ Файл загружен!';
+    } else {
+        content = contentInput ? contentInput.value : '';
+    }
+    
+    const res = await fetch('/api/create-lesson', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ module_id: currentModuleId, title, type, content })
+    });
+    
+    if (res.ok) {
+        window.location.reload();
+    } else {
+        const err = await res.json();
+        alert(err.error || 'Ошибка');
+    }
+}
+
+async function updateLessonWithFile() {
+    const form = document.getElementById('addLessonForm');
+    const lessonId = form ? form.dataset.editingId : null;
+    if (!lessonId) return;
+
+    const titleInput = document.getElementById('newLessonTitle');
+    const typeSelect = document.getElementById('newLessonType');
+    const contentInput = document.getElementById('newLessonContent');
+    const fileInput = document.getElementById('newLessonFile');
+    const statusDiv = document.getElementById('uploadStatus');
+
+    const title = titleInput ? titleInput.value.trim() : '';
+    const type = typeSelect ? typeSelect.value : 'markdown';
+    
+    if (!title) { alert('Введи название'); return; }
+
+    let content = "";
+
+    if (type === 'pdf_file' || type === 'ipynb_file') {
+        if (fileInput && fileInput.files.length > 0) {
+            if (statusDiv) statusDiv.textContent = '⏳ Загрузка нового файла...';
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            const uploadRes = await fetch('/api/upload-lesson-file', { method: 'POST', body: formData });
+            const uploadData = await uploadRes.json();
+            
+            if (!uploadRes.ok) {
+                if (statusDiv) statusDiv.textContent = '';
+                alert(uploadData.error || 'Ошибка загрузки');
+                return;
+            }
+            content = uploadData.filename;
+        } else {
+            // Оставляем старый файл
+            let targetLesson = null;
+            courseData.modules.forEach(m => {
+                const found = m.lessons.find(l => l.id == lessonId);
+                if (found) targetLesson = found;
+            });
+            content = targetLesson ? targetLesson.content : "";
+        }
+    } else {
+        content = contentInput ? contentInput.value : '';
+    }
+
+    const res = await fetch(`/api/lesson/${lessonId}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ title, type, content })
+    });
+
+    if (res.ok) {
+        window.location.reload();
+    } else {
+        const err = await res.json();
+        alert(err.error || 'Ошибка');
+    }
+}
+
+async function deleteLesson(id) {
+    if (!confirm('Удалить этот урок?')) return;
+    const res = await fetch(`/api/lesson/${id}`, { method: 'DELETE' });
+    if (res.ok) window.location.reload();
+    else alert('Ошибка');
+}
+
+async function addModule() {
+    const title = prompt('Название модуля:');
+    if (!title) return;
+    const res = await fetch('/api/create-module', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ course_id: courseId, title })
+    });
+    if (res.ok) window.location.reload();
+    else alert('Ошибка');
+}
+
+async function deleteModule(id) {
+    if (!confirm('Удалить модуль со всеми уроками?')) return;
+    const res = await fetch(`/api/module/${id}`, { method: 'DELETE' });
+    if (res.ok) window.location.reload();
+    else alert('Ошибка');
+}
+
+async function editCourseInfo() {
+    const titleEl = document.getElementById('courseTitleDisplay');
+    const descEl = document.getElementById('courseDescDisplay');
+    
+    const currentTitle = titleEl ? titleEl.textContent : '';
+    const currentDesc = (descEl && descEl.textContent !== 'Без описadaния') ? descEl.textContent : '';
+    
+    const newTitle = prompt('Новое название курса:', currentTitle);
+    if (!newTitle) return;
+    const newDesc = prompt('Новое описание:', currentDesc);
+    
+    const res = await fetch(`/api/course/${courseId}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ title: newTitle, description: newDesc || '' })
+    });
+    if (res.ok) window.location.reload();
+    else alert('Ошибка');
+}
+
+async function deleteCourse() {
+    if (!confirm('Удалить курс БЕЗВОЗВРАТНО?')) return;
+    if (!confirm('Точно-точно? Все модули и уроки тоже удалятся!')) return;
+    
+    const res = await fetch(`/api/course/${courseId}`, { method: 'DELETE' });
+    if (res.ok) window.location.href = '/profile';
+    else alert('Ошибка');
+}
+</script>
+
+<!-- JSON с данными курса для JS -->
+<script id="course-data" type="application/json">
+{{ course|tojson }}
+</script>
+{% endblock %}

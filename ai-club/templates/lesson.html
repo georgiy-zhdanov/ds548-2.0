@@ -26,8 +26,37 @@
             document.getElementById('md-content').innerHTML =
                 marked.parse({{ lesson.content|tojson }});
         </script>
+        {% elif lesson.type == 'pdf_file' %}
+        <div class="file-viewer-shell">
+            <div class="file-header">
+                <span class="file-icon">📄</span>
+                <h3>PDF Документ: {{ lesson.title }}</h3>
+            </div>
+            <div class="pdf-embed-container">
+                <embed src="/uploads/{{ lesson.content }}" type="application/pdf" width="100%" height="600px" />
+            </div>
+            <div class="file-fallback">
+                <p>Если PDF не отображается в браузере, <a href="/uploads/{{ lesson.content }}" download class="text-link">скачай его здесь</a>.</p>
+            </div>
+        </div>
 
-        {% elif lesson.type == 'jupyter' %}
+    {% elif lesson.type == 'ipynb_file' %}
+        <div class="file-viewer-shell">
+            <div class="file-header">
+                <span class="file-icon">📓</span>
+                <h3>Jupyter Notebook: {{ lesson.title }}</h3>
+            </div>
+            <div class="ipynb-info">
+                <p>Этот урок представлен в формате <code>.ipynb</code>. Скачай файл и открой его в:</p>
+                <ul class="ipynb-options">
+                    <li>💻 <strong>VS Code</strong> (с расширением Jupyter)</li>
+                    <li>🌐 <strong>Google Colab</strong> (перетащи файл в colab.research.google.com)</li>
+                    <li>🚀 <strong>Jupyter Lab</strong> (локально)</li>
+                </ul>
+                <a href="/uploads/{{ lesson.content }}" download class="btn-primary">⬇ Скачать {{ lesson.content }}</a>
+            </div>
+        </div>
+    {% elif lesson.type == 'jupyter' %}
         <div class="jupyter-shell">
             <div class="jupyter-task">
                 📌 <strong>Задача:</strong> <span id="j-task-text">Загрузка...</span>
@@ -94,7 +123,7 @@
                     addMsg('user', userMessage);
                     inputField.value = '';
                 } else {
-                    addMsg('user', userMessage); // Первое сообщение от системы
+                    addMsg('user', userMessage);
                 }
 
                 sendBtn.disabled = true;
@@ -106,26 +135,43 @@
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({
-                            context: lessonContext.topic || "Python основы",
+                            lesson_id: {{ lesson.id }}, // <-- ВОТ ЭТО ГЛАВНОЕ ИСПРАВЛЕНИЕ
                             message: userMessage,
                             history: chatHistory
                         })
                     });
                     const data = await res.json();
                     
-                    // Формируем красивый ответ
                     let aiResponseText = data.feedback + "\n\n";
                     if (data.next_step) {
                         aiResponseText += "➡️ " + data.next_step;
                     }
+                    
                     if (data.lesson_completed) {
-                        aiResponseText += "\n\n🎉 Урок пройден! Твой ELO обновлён.";
+                        aiResponseText += "\n\n🎉 Урок пройден! Начисляем ELO...";
+                        
+                        // Отправляем запрос на сервер для обновления рейтинга
+                        fetch('/api/complete-lesson', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                lesson_id: {{ lesson.id }}
+                            })
+                        })
+                        .then(res => res.json())
+                        .then(result => {
+                            if (result.ok) {
+                                addMsg('ai', `✅ Рейтинг обновлен! Твой новый ELO: ${result.new_elo}`);
+                                // Можно также обновить цифру в шапке сайта, если она там есть
+                            }
+                        });
                     }
 
                     addMsg('ai', aiResponseText);
                     chatHistory.push({"role": "assistant", "content": JSON.stringify(data)});
+                    
                 } catch (err) {
-                    addMsg('ai', '⚠️ Ошибка связи с AI. Убедись, что Ollama запущена.');
+                    addMsg('ai', '⚠️ Ошибка связи с AI.');
                 } finally {
                     sendBtn.disabled = false;
                     sendBtn.textContent = 'Отправить →';

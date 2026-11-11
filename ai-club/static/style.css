@@ -1,3 +1,302 @@
+/* ============ FILE VIEWERS ============ */
+.file-viewer-shell {
+    border: 1px solid #1a1a1a;
+    background: #080808;
+    padding: 25px;
+    margin-top: 20px;
+}
+.file-header {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #1a1a1a;
+}
+.file-header .file-icon { font-size: 32px; }
+.file-header h3 { font-size: 18px; color: #fff; margin: 0; }
+
+.pdf-embed-container {
+    border: 1px solid #2a2a2a;
+    background: #fff; /* PDF нужен белый фон для читаемости */
+    border-radius: 4px;
+    overflow: hidden;
+}
+.file-fallback {
+    margin-top: 15px;
+    text-align: center;
+    font-size: 13px;
+    color: #888;
+}
+.text-link {
+    color: #00ff96;
+    text-decoration: underline;
+}
+
+.ipynb-info {
+    text-align: center;
+    padding: 20px;
+}
+.ipynb-info p { color: #aaa; margin-bottom: 15px; }
+.ipynb-options {
+    list-style: none;
+    text-align: left;
+    max-width: 400px;
+    margin: 0 auto 25px;
+    padding: 20px;
+    background: #0a0a0a;
+    border: 1px solid #1a1a1a;
+    border-radius: 4px;
+}
+.ipynb-options li {
+    padding: 8px 0;
+    color: #ccc;
+    font-size: 14px;
+    border-bottom: 1px solid #121212;
+}
+.ipynb-options li:last-child { border-bottom: none; }
+.ipynb-options code {
+    background: #1a1a1a;
+    color: #00ff96;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+/* ============ COURSE CARD ACTIONS ============ */
+.course-card-wrapper {
+    position: relative;
+}
+.card-actions {
+    display: flex;
+    gap: 5px;
+    margin-top: 8px;
+}
+.card-btn {
+    flex: 1;
+    padding: 6px;
+    background: #0a0a0a;
+    border: 1px solid #1a1a1a;
+    color: #888;
+    text-decoration: none;
+    text-align: center;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+}
+.card-btn:hover { border-color: #00ff96; color: #00ff96; }
+.card-btn-danger:hover { border-color: #ff4444; color: #ff4444; }
+
+/* ============ EDITOR LAYOUT ============ */
+.editor-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 25px;
+    margin-top: 30px;
+}
+
+.editor-sidebar {
+    border: 1px solid #1a1a1a;
+    background: #080808;
+    padding: 20px;
+    height: fit-content;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+}
+
+.sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #1a1a1a;
+}
+.sidebar-header h3 {
+    font-size: 12px;
+    color: #00ff96;
+    letter-spacing: 2px;
+}
+
+.modules-list { display: flex; flex-direction: column; gap: 5px; }
+
+.module-item-editor {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: #0a0a0a;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+}
+.module-item-editor:hover { border-color: #2a2a2a; }
+.module-item-editor.active {
+    border-color: #00ff96;
+    background: rgba(0, 255, 150, 0.05);
+}
+.module-order { color: #00ff96; font-size: 11px; min-width: 30px; }
+.module-title-edit { flex: 1; color: #ccc; }
+
+.editor-main {
+    border: 1px solid #1a1a1a;
+    background: #080808;
+    padding: 25px;
+    min-height: 400px;
+}
+
+.module-editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #1a1a1a;
+}
+.module-editor-header h2 { font-size: 18px; color: #fff; }
+
+.lessons-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+
+.lesson-item-editor {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: #0a0a0a;
+    border: 1px solid #1a1a1a;
+    font-size: 13px;
+}
+.lesson-order { color: #555; font-size: 11px; min-width: 30px; }
+.lesson-type-badge {
+    font-size: 10px;
+    padding: 2px 8px;
+    letter-spacing: 1px;
+    border: 1px solid #2a2a2a;
+    color: #888;
+}
+.lesson-title-edit { flex: 1; color: #ccc; }
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    color: #555;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 0 6px;
+    transition: color 0.2s;
+}
+.btn-icon:hover { color: #ff4444; }
+
+.btn-small {
+    background: transparent;
+    border: 1px solid #2a2a2a;
+    color: #888;
+    padding: 6px 12px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    letter-spacing: 1px;
+}
+.btn-small:hover { border-color: #00ff96; color: #00ff96; }
+.btn-accent {
+    border-color: #00ff96 !important;
+    color: #00ff96 !important;
+}
+
+.add-form {
+    margin-top: 20px;
+    padding: 20px;
+    background: #0a0a0a;
+    border: 1px solid #1a1a1a;
+}
+.add-form h3 {
+    font-size: 14px;
+    color: #00ff96;
+    margin-bottom: 15px;
+}
+.add-form label {
+    display: block;
+    color: #888;
+    font-size: 11px;
+    letter-spacing: 1px;
+    margin: 12px 0 6px;
+}
+.add-form input,
+.add-form textarea,
+.add-form select {
+    width: 100%;
+    background: #050505;
+    border: 1px solid #2a2a2a;
+    color: #fff;
+    padding: 10px;
+    font-family: inherit;
+    font-size: 13px;
+}
+.add-form input:focus,
+.add-form textarea:focus,
+.add-form select:focus {
+    outline: none;
+    border-color: #00ff96;
+}
+
+.form-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.course-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    flex-wrap: wrap;
+}
+
+.btn-danger {
+    border-color: #ff4444 !important;
+    color: #ff4444 !important;
+}
+.btn-danger:hover {
+    background: #ff4444 !important;
+    color: #000 !important;
+}
+
+.empty-state {
+    padding: 40px;
+    text-align: center;
+    color: #555;
+    font-size: 13px;
+}
+
+@media (max-width: 768px) {
+    .editor-layout { grid-template-columns: 1fr; }
+}
+
+/* ============ PROFILE UPGRADES ============ */
+.btn-create {
+    background: #00ff96 !important;
+    color: #000 !important;
+    font-weight: bold;
+}
+.btn-create:hover {
+    background: #00cc78 !important;
+    color: #000 !important;
+}
+
+.my-courses-section {
+    margin-top: 50px;
+}
+.my-courses-section h2 {
+    font-size: 20px;
+    color: #00ff96;
+    letter-spacing: 3px;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #1a1a1a;
+}
+
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -658,4 +957,111 @@ textarea:focus { outline: none; border-color: #00ff96; }
     .lb-table th, .lb-table td { padding: 10px 12px; font-size: 12px; }
     .ai-input { flex-direction: column; }
     .lesson-nav { flex-direction: column; gap: 10px; }
+}
+
+/* ============ CREATE COURSE FORM ============ */
+.create-form {
+    max-width: 800px;
+}
+
+.form-section {
+    border: 1px solid #1a1a1a;
+    padding: 30px;
+    margin-bottom: 30px;
+    background: #080808;
+}
+
+.form-section h2 {
+    font-size: 20px;
+    color: #00ff96;
+    margin-bottom: 20px;
+}
+
+.create-form label {
+    display: block;
+    color: #888;
+    font-size: 12px;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    margin-top: 15px;
+}
+
+.create-form input,
+.create-form textarea,
+.create-form select {
+    width: 100%;
+    background: #0a0a0a;
+    border: 1px solid #2a2a2a;
+    color: #fff;
+    padding: 12px;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.create-form input:focus,
+.create-form textarea:focus,
+.create-form select:focus {
+    outline: none;
+    border-color: #00ff96;
+}
+
+.btn-primary {
+    background: #00ff96;
+    color: #000;
+    border: none;
+    padding: 14px 24px;
+    font-family: inherit;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 14px;
+    letter-spacing: 1px;
+    margin-top: 20px;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn-primary:hover {
+    background: #00cc78;
+}
+
+.btn-secondary {
+    background: transparent;
+    color: #00ff96;
+    border: 1px solid #00ff96;
+    padding: 10px 20px;
+    font-family: inherit;
+    cursor: pointer;
+    font-size: 13px;
+    margin-top: 15px;
+}
+
+.btn-secondary:hover {
+    background: rgba(0, 255, 150, 0.1);
+}
+
+.module-item,
+.lesson-item {
+    padding: 10px;
+    margin: 5px 0;
+    background: #0a0a0a;
+    border-left: 3px solid #00ff96;
+    color: #ccc;
+    font-size: 13px;
+}
+
+.success-box {
+    border: 2px solid #00ff96;
+    padding: 40px;
+    text-align: center;
+    background: rgba(0, 255, 150, 0.05);
+}
+
+.success-box h2 {
+    color: #00ff96;
+    margin-bottom: 15px;
+}
+
+.success-box p {
+    color: #aaa;
+    margin-bottom: 25px;
 }
